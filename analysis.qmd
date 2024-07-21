@@ -1,0 +1,73 @@
+---
+title: "Causal Effect"
+format: html
+execute:
+  echo: false
+---
+
+```{r}
+#| label: setup
+#| message: false
+
+library(tidyverse)
+library(primer.data)
+library(brms)
+library(tidybayes)
+library(gtsummary)
+```
+
+```{r}
+#| label: load data
+
+ch6 <-
+  trains |>
+    select(att_end, treatment)
+```
+
+```{r}
+#| label: model
+#| cache: true
+
+fit_gauss <- 
+  brm(formula = att_end ~ treatment,
+    data = ch6,
+    family = gaussian(),
+    refresh = 0,
+    silent = 2,
+    seed = 9)
+
+
+```
+
+```{r}
+#| label: table regression
+
+tbl_regression(fit_gauss)
+```
+
+```{r}
+ndata <- tibble(treatment = c("Treated", "Control"))
+
+model <-
+fit_gauss |>
+  add_epred_draws(newdata = ndata)
+
+fit_gauss |>
+  add_epred_draws(newdata = ndata) |>
+  select(treatment, .draw, .epred) |>
+  pivot_wider(id_cols = .draw, names_from = treatment, values_from = .epred) |>
+  mutate(causal_effect = Treated - Control) |>
+  select(- .draw) |>
+  ggplot(aes(x = causal_effect)) +
+  geom_histogram(aes(y = after_stat(count / sum(count))), bins = 100) +
+  scale_y_continuous(labels = scales::percent_format()) +
+  theme_classic() +
+  labs(title = "Posterior for Average Treatment Effect",
+       subtitle = "Exposure to Spanish-speakers shifts immigration attitudes rightward",
+       x = "Difference in Attitude",
+       y = "Probability")
+```
+
+The posterior, or the coefficient of Control is centered around −1.5 with a 95% Confidence Interval between −2.5 and −0.5.
+
+The question is: What is the average treatment effect, of exposing people to Spanish-speakers, on their attitudes toward immigration? I have loaded the data, considered validity, stability, representativeness, and unconfoundedness. One problem is that politics might have changed throughout this time. I then made bayesian regression model of the end attitude to the treatment. I used add epred draws and subtracted the control from the treatment to get the causal effect. I then plotted a histogram of the causal effect
